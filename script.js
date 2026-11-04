@@ -76,13 +76,13 @@
   function renderHeader() {
     var t = S.team;
     var nav = [
-      ['about', 'Who we are'], ['team', 'Our team'], ['robot', 'Our robot'],
+      ['home', 'Home'], ['team', 'Our team'], ['robot', 'Our robot'],
       ['legacy', 'Our legacy'], ['stem', 'Expanding STEM']
     ];
     if (gameOn()) nav.push(['play', 'Play']);
     nav.push(['contact', 'Contact us']);
     return '<header class="site-header on-dark"><div class="container header-row">' +
-      '<a class="brand" href="#top" aria-label="' + esc(t.number + ' ' + t.name + ', back to top') + '">' +
+      '<a class="brand" href="#home" aria-label="' + esc(t.number + ' ' + t.name + ', home') + '">' +
         '<span class="logo" data-photo>' + ICON_COIL +
           '<img data-base="photos/logo" data-exts="png,svg,jpg,webp" data-i="0" src="photos/logo.png" alt="" decoding="async"></span>' +
         '<span class="brand-text">' + esc(t.number) + ' ' + esc(t.name) + '</span>' +
@@ -311,19 +311,27 @@
     var t = S.team;
     return '<footer class="site-footer on-dark"><div class="container footer-row">' +
       '<p>' + esc(t.number) + ' ' + esc(t.name) + ' is part of the <a href="' + esc(t.programUrl) + '" target="_blank" rel="noopener">' + esc(t.program) + '</a> at ' + esc(t.school) + ', ' + esc(t.place) + '.</p>' +
-      '<p><a href="#top">Back to top</a></p></div></footer>';
+      '<p><a href="#home" data-top>Back to top</a></p></div></footer>';
   }
 
-  /* ---------- Page assembly ---------- */
+  /* ---------- Page assembly: the site is a set of tabs; only one page shows at a time ---------- */
+  var PAGE_TITLES = { home: '', team: 'Our team', robot: 'Our robot', legacy: 'Our legacy', stem: 'Expanding STEM', play: 'Play', contact: 'Contact us' };
+  function page(name, html) { return '<div class="page" id="page-' + name + '" data-page="' + name + '" hidden>' + html + '</div>'; }
+
   function render() {
     if (S.settings && S.settings.showEmptyPhotoSlots === false) document.body.classList.add('hide-empty');
     app.innerHTML =
       '<a class="skip" href="#main">Skip to content</a>' +
       '<div class="progress" aria-hidden="true"></div>' +
       renderHeader() +
-      '<main id="main">' +
-        renderHero() + renderAbout() + renderTeam() + renderRobot() + renderGallery() +
-        renderLegacy() + renderStem() + renderEvents() + renderSponsors() + renderGame() + renderContact() +
+      '<main id="main" tabindex="-1">' +
+        page('home', renderHero() + renderAbout() + renderSponsors()) +
+        page('team', renderTeam() + renderGallery()) +
+        page('robot', renderRobot()) +
+        page('legacy', renderLegacy()) +
+        page('stem', renderStem() + renderEvents()) +
+        page('play', renderGame()) +
+        page('contact', renderContact()) +
       '</main>' + renderFooter();
   }
 
@@ -381,18 +389,84 @@
         if (e.target.closest('a')) { toggle.setAttribute('aria-expanded', 'false'); nav.classList.remove('is-open'); }
       });
     }
-    if (!('IntersectionObserver' in window)) return;
-    var links = {};
-    document.querySelectorAll('.nav-link').forEach(function (a) { links[a.getAttribute('href').slice(1)] = a; });
-    var io = new IntersectionObserver(function (entries) {
-      entries.forEach(function (en) {
-        if (!en.isIntersecting) return;
-        Object.keys(links).forEach(function (k) {
-          if (k === en.target.id) links[k].setAttribute('aria-current', 'true'); else links[k].removeAttribute('aria-current');
+  }
+
+  /* ---------- Tabs: show one page at a time, driven by the address (#team, #robot, ...) ---------- */
+  function initPages() {
+    var pages = {};
+    document.querySelectorAll('.page').forEach(function (p) { if (p.textContent.trim()) pages[p.dataset.page] = p; });
+    var siteName = S.team.number + ' ' + S.team.name;
+    var baseTitle = document.title;
+    // Each page gets one main heading: the first section title becomes the h1.
+    Object.keys(pages).forEach(function (k) {
+      if (k === 'home') return;
+      var h = pages[k].querySelector('h2.section-title');
+      if (!h) return;
+      var h1 = document.createElement('h1');
+      h1.className = h.className; h1.innerHTML = h.innerHTML;
+      h.replaceWith(h1);
+      // Keep headings in order under the new h1 (h3 reads as a level-2 heading, h4 as level 3).
+      var sec = h1.closest('section');
+      if (sec) {
+        sec.querySelectorAll('h3').forEach(function (x) { x.setAttribute('aria-level', '2'); });
+        sec.querySelectorAll('h4').forEach(function (x) { x.setAttribute('aria-level', '3'); });
+      }
+    });
+    var current = '';
+    function show(name, anchorEl) {
+      if (!pages[name]) name = 'home';
+      if (name !== current) {
+        Object.keys(pages).forEach(function (k) { pages[k].hidden = k !== name; });
+        document.querySelectorAll('.nav-link').forEach(function (a) {
+          if (a.getAttribute('href') === '#' + name) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
         });
-      });
-    }, { rootMargin: '-45% 0px -50% 0px' });
-    Object.keys(links).forEach(function (id) { var el = document.getElementById(id); if (el) io.observe(el); });
+        document.title = name === 'home' ? baseTitle : (PAGE_TITLES[name] || name) + ' | ' + siteName;
+        current = name;
+        window.dispatchEvent(new Event('resize'));   // lets the wordmark and game measure themselves now they are visible
+      }
+      if (anchorEl) anchorEl.scrollIntoView(); else window.scrollTo(0, 0);
+    }
+    function route() {
+      var h = decodeURIComponent(location.hash.replace(/^#\/?/, ''));
+      if (!h || pages[h]) { show(h || 'home'); return; }
+      var el = document.getElementById(h), pg = el && el.closest('.page');   // old section links still work
+      if (pg) show(pg.dataset.page, el); else show('home');
+    }
+    document.addEventListener('click', function (e) {
+      var a = e.target.closest && e.target.closest('a[data-top]');
+      if (a) { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+    });
+    window.addEventListener('hashchange', function () {
+      route();
+      var m = document.getElementById('main'); if (m) m.focus({ preventScroll: true });
+    });
+    route();
+  }
+
+  /* ---------- Fit the big RECOIL wordmark to its box, whatever font the browser ends up using ---------- */
+  function initWordmarkFit() {
+    var wrap = document.querySelector('.wordmark');
+    if (!wrap) return;
+    var pending = 0;
+    function fit() {
+      pending = 0;
+      wrap.style.removeProperty('--wm');
+      var avail = wrap.clientWidth, total = 0;
+      Array.prototype.forEach.call(wrap.children, function (c) { total += c.offsetWidth; });
+      var max = avail * 0.9;                       // leave room so the letters never touch
+      if (total > max && total > 0) {
+        var size = parseFloat(getComputedStyle(wrap).fontSize) * (max / total);
+        wrap.style.setProperty('--wm', size.toFixed(1) + 'px');
+      }
+    }
+    function queue() { if (!pending) pending = requestAnimationFrame(fit); }
+    fit();
+    window.addEventListener('resize', queue);
+    if (document.fonts) {
+      if (document.fonts.ready) document.fonts.ready.then(queue);
+      if (document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', queue);
+    }
+    window.addEventListener('load', queue);
   }
 
   /* ---------- The spring: pull a letter of the wordmark ---------- */
@@ -576,7 +650,9 @@
     render();
     pending = document.querySelectorAll('img[data-base]').length;
     initNav();
+    initPages();
     initFilter();
+    initWordmarkFit();
     initWordmark();
     initReveal();
     initCountUp();

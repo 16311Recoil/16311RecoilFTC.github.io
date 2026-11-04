@@ -10,6 +10,10 @@ A plain HTML, CSS, and JavaScript site. No installs, no build step, no accounts 
 
 To preview on your computer, double-click `index.html`.
 
+## How the pages work
+
+The site is a set of tabs: Home, Our team, Our robot, Our legacy, Expanding STEM, Play, and Contact us. Only one shows at a time, and each has its own link, for example `yoursite/#team` or `yoursite/#robot`, so you can share a link straight to a page. Which content sits on which tab is set in `script.js` under "Page assembly". You normally never touch that.
+
 ## Editing `content.js`
 
 - Text goes inside "quote marks". Keep the comma at the end of each line.
