@@ -491,7 +491,7 @@
   }
   document.addEventListener('visibilitychange', sync);
   if ('IntersectionObserver' in window) {
-    new IntersectionObserver(function (es) { onScreen = es[0].isIntersecting; sync(); }, { threshold: 0.05 }).observe(canvas);
+    new IntersectionObserver(function (es) { onScreen = es[0].isIntersecting; if (onScreen) resize(); sync(); }, { threshold: 0.05 }).observe(canvas);
   } else { onScreen = true; sync(); }
 
   setState('idle');
